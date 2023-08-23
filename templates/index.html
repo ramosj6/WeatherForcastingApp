@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block title %}RainCheck Weather App{% endblock %}
+
+{% block content %}
+<div class="col-md-6 offset-md-3">
+    <h2>Weather Forecast</h2>
+    <ul>
+        {% for entry in weather_data %}
+            <li>{{ entry.location }}: {{ entry.temperature }}°C</li>
+        {% endfor %}
+    </ul>
+    {% if not user_logged_in %}
+    <p>You are not logged in. <a href="/login">Login</a> or <a href="/register">Register</a>.</p>
+    {% endif %}
+
+</div>
+{% endblock %}
