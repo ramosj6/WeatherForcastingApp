@@ -3,6 +3,7 @@ import requests
 from pprint import pprint
 from mongo_connect import client
 
+
 # MongoDB details
 db = client["Weather"]
 collection = ["weather"]
