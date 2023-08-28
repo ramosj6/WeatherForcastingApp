@@ -7,8 +7,8 @@ import requests
 from get_coords import get_latitude_longitude_from_zip
 from dotenv import load_dotenv #pip install python-dotenv
 
-
 load_dotenv()
+
 
 
 app = Flask(__name__)
@@ -57,7 +57,6 @@ def fetch_and_store_weather(latitude, longitude, zip_code):
         print("No forecast data found.")
 
 
-
 @app.route("/")
 def index():
     if "user_id" in session:
@@ -75,7 +74,6 @@ def index():
         weather_data = db.weather_data.find()
         return render_template("index.html", user=user, weather_data=weather_data, user_logged_in=True)
     return render_template("index.html", user_logged_in=False)
-
 
 @app.route("/register", methods=["GET", "POST"])
 def register():

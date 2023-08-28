@@ -26,7 +26,7 @@ if response.status_code == 200:
     forecast_hourly_response = requests.get(forecast_hourly_endpoint)
     if forecast_hourly_response.status_code == 200:
         forecast_data = forecast_hourly_response.json()
-        pprint(forecast_data)
+        # pprint(forecast_data)
     else:
         print(f"API request failed with status code: {forecast_hourly_response.status_code}")
 else: 
