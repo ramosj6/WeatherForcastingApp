@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Weather Map</title>
+    <style>
+        #map {
+            height: 400px;
+            width: 100%;
+        }
+    </style>
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
+    <script src="{{ url_for('static', filename='map.js') }}"></script> <!-- Link to your JavaScript file -->
+</head>
+<body>
+    <div id="map"></div>
+    <script>
+        // Call the initMap function after loading the Google Maps API
+        initMap();
+    </script>
+</body>
+</html>
