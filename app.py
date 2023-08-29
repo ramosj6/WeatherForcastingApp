@@ -106,5 +106,18 @@ def logout():
     session.clear()  # Clear the user's session data
     return render_template("logout.html")
 
+@app.route("/update_zipcode", methods=["POST"])
+def update_zipcode():
+    if "user_id" in session:
+        if request.method == "POST":
+            new_zipcode = request.form["new_zipcode"]
+            # Update the user's zipcode in the database
+            db.users.update_one(
+                {"_id": session["user_id"]},
+                {"$set": {"zip_code": new_zipcode}}
+            )
+            return redirect("/")  # Redirect to the homepage or any other appropriate page after updating
+    return redirect("/login")  # Redirect to the login page if the user is not logged in
+
 if __name__ == "__main__":
     app.run(debug=True)
