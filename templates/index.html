@@ -10,17 +10,7 @@
         {% endfor %}
     </ul>
     
-    <p>Use the form below to update your zipcode and get other forecasts:</p>
 
-    <!-- Zipcode Update Form -->
-    <form action="{{ url_for('update_zipcode') }}" method="POST">
-        <div class="form-group">
-            <label for="new_zipcode">New Zipcode</label>
-            <input type="text" class="form-control" id="new_zipcode" name="new_zipcode" required>
-        </div>
-        <button type="submit" class="btn btn-primary">Update</button>
-    </form>
-    
     {% if not user_logged_in %}
     <p>You are not logged in. <a href="/login">Login</a> or <a href="/register">Register</a>.</p>
     {% endif %}
