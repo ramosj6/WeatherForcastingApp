@@ -106,5 +106,56 @@ def logout():
     session.clear()  # Clear the user's session data
     return render_template("logout.html")
 
+@app.route("/profile")
+def profile():
+    if "user_id" in session:
+        user = db.users.find_one({"_id": session["user_id"]})
+        return render_template("profile.html", username=user["username"], user_logged_in=True)
+    return redirect("/login")
+
+@app.route("/update_zipcode", methods=["POST"])
+def update_zipcode():
+    if "user_id" in session:
+        if request.method == "POST":
+            new_zipcode = request.form["new_zipcode"]
+            user = db.users.find_one({"_id": session["user_id"]})
+            # Update the user's zipcode in the database
+            db.users.update_one(
+                {"_id": session["user_id"]},
+                {"$set": {"zip_code": new_zipcode}}
+            )
+            success_message = "Zipcode updated successfully."
+            return render_template("profile.html", username=user["username"],  success_message=success_message, user_logged_in=True)
+    return redirect("/login")  # Redirect to the login page if the user is not logged in
+
+@app.route("/update_password", methods=["POST"])
+def update_password():
+    if "user_id" in session:
+        if request.method == "POST":
+            current_password = request.form["current_password"]
+            new_password = request.form["new_password"]
+            confirm_new_password = request.form["confirm_new_password"]
+            user = db.users.find_one({"_id": session["user_id"]})
+            
+            if bcrypt.check_password_hash(user["password"], current_password):
+            
+                if new_password == confirm_new_password:
+                    # Hash and update the new password in the database
+                    hashed_password = bcrypt.generate_password_hash(new_password).decode("utf-8")
+                    db.users.update_one(
+                        {"_id": session["user_id"]},
+                        {"$set": {"password": hashed_password}}
+                    )
+                    # Pass a success message to the template
+                    success_message = "Password changed successfully."
+                    return render_template("profile.html", username=user["username"], success_message=success_message, user_logged_in=True)
+                else:
+                    error_message = "New password and confirmation do not match."
+                    return render_template("profile.html", username=user["username"], error_message=error_message, user_logged_in=True)
+            else:
+                error_message = "Current password is incorrect."
+                return render_template("profile.html", username=user["username"], error_message=error_message, user_logged_in=True)
+        return redirect("/login")            
+
 if __name__ == "__main__":
     app.run(debug=True)
