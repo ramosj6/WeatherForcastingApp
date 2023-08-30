@@ -118,13 +118,14 @@ def update_zipcode():
     if "user_id" in session:
         if request.method == "POST":
             new_zipcode = request.form["new_zipcode"]
+            user = db.users.find_one({"_id": session["user_id"]})
             # Update the user's zipcode in the database
             db.users.update_one(
                 {"_id": session["user_id"]},
                 {"$set": {"zip_code": new_zipcode}}
             )
             success_message = "Zipcode updated successfully."
-            return render_template("profile.html",  success_message=success_message, user_logged_in=True)
+            return render_template("profile.html", username=user["username"],  success_message=success_message, user_logged_in=True)
     return redirect("/login")  # Redirect to the login page if the user is not logged in
 
 @app.route("/update_password", methods=["POST"])
