@@ -1,5 +1,6 @@
 import os
-from flask import Flask, render_template, request, redirect, session
+from bson import ObjectId
+from flask import Flask, render_template, request, redirect, session, jsonify
 from flask_bcrypt import Bcrypt
 from flask_session import Session
 from mongo_connect import client
@@ -7,7 +8,7 @@ import requests
 from get_coords import get_latitude_longitude_from_zip
 from dotenv import load_dotenv #pip install python-dotenv
 
-load_dotenv()
+load_dotenv() #fetching the .env file which contains any sensitive information to call
 
 
 
@@ -27,12 +28,12 @@ def fetch_and_store_weather(latitude, longitude, zip_code):
     
     response = requests.get(nws_api_endpoint)
     if "properties" in response.json():
-        forecast_hourly_endpoint = response.json()["properties"]["forecastHourly"]
+        forecast_endpoint = response.json()["properties"]["forecast"]
         
-        forecast_hourly_response = requests.get(forecast_hourly_endpoint)
-        if forecast_hourly_response.status_code == 200:
-            forecast_data = forecast_hourly_response.json()
-            
+        forecast_response = requests.get(forecast_endpoint)
+        if forecast_response.status_code == 200:
+            forecast_data = forecast_response.json()
+            #print(forecast_data)
             # Check if the latitude and longitude combination already exists
             existing_record = db.weather.find_one({"latitude": latitude, "longitude": longitude})
             if existing_record:
@@ -52,28 +53,100 @@ def fetch_and_store_weather(latitude, longitude, zip_code):
                 })
                 print("Weather data stored successfully.")
         else:
-            print(f"API request failed with status code: {forecast_hourly_response.status_code}")
+            print(f"API request failed with status code: {forecast_response.status_code}")
     else:
         print("No forecast data found.")
 
 
 @app.route("/")
 def index():
+    """Renders the index page."""
+
     if "user_id" in session:
         user = db.users.find_one({"_id": session["user_id"]})
-        
-        # Fetch latitude and longitude based on user's zip code
+
+        if user is not None and user["zip_code"]:
+            latitude, longitude, formatted_address, locality, administrative_area = get_latitude_longitude_from_zip(
+                user["zip_code"], os.environ.get("GOOGLE_API")
+            )
+
+            if latitude and longitude:
+                fetch_and_store_weather(latitude, longitude, user["zip_code"])
+
+            weather_data = list(db.weather.find())
+
+            default_latitude = latitude
+            default_longitude = longitude
+
+            return render_template("index.html", user=user, weather_data=weather_data,
+                               user_logged_in=True, default_latitude=default_latitude,
+                               default_longitude=default_longitude, latitude=latitude, longitude=longitude)
+        else:
+            default_latitude = 39.8283
+            default_longitude = 98.5795
+            return render_template("index.html", user_logged_in=False,
+                               default_latitude=default_latitude, default_longitude=default_longitude)
+    else:
+        default_latitude = 39.8283
+        default_longitude = 98.5795
+        return render_template("index.html", user_logged_in=False,
+                               default_latitude=default_latitude, default_longitude=default_longitude)
+    
+@app.route("/map")
+def map_page():
+    if "user_id" in session:
+        user = db.users.find_one({"_id": session["user_id"]})
         latitude, longitude, formatted_address, locality, administrative_area = get_latitude_longitude_from_zip(
             user["zip_code"], os.environ.get("GOOGLE_API")
         )
-        
-        # Fetch and store weather data based on extracted locality and administrative area
-        if latitude and longitude:
-            fetch_and_store_weather(latitude, longitude, user["zip_code"])
-        
-        weather_data = db.weather_data.find()
-        return render_template("index.html", user=user, weather_data=weather_data, user_logged_in=True)
-    return render_template("index.html", user_logged_in=False)
+        weather_data = list(db.weather.find(projection={"_id": False}))
+    else:
+        user = None
+        weather_data = []
+
+    default_latitude = latitude if latitude else 39.8283
+    default_longitude = longitude if longitude else -98.5795
+
+    # Prepare the weather data to include only relevant information for JavaScript
+    processed_weather_data = []
+    for entry in weather_data:
+        periods = entry.get("properties", {}).get("periods", [])
+        if periods:
+            first_period = periods[0]
+            temperature = first_period.get("temperature")
+            icon_url = first_period.get("icon")
+            if temperature and icon_url:
+                processed_weather_data.append({
+                    "latitude": entry["geometry"]["coordinates"][1],
+                    "longitude": entry["geometry"]["coordinates"][0],
+                    "temperature": temperature,
+                    "icon_url": icon_url
+                })
+
+    return render_template(
+        "map.html",
+        user=user,  # Pass the user information to the template
+        default_latitude=default_latitude,
+        default_longitude=default_longitude,
+        weather_data=processed_weather_data
+    )
+
+
+@app.route("/weather")
+def weather_data():
+    if "user_id" in session:
+        user = db.users.find_one({"_id": session["user_id"]})
+    weather_data = list(db.weather.find(projection={"_id": False}))
+    # Convert ObjectId to string in each entry
+    for entry in weather_data:
+        if "_id" in entry:
+            entry["_id"] = str(entry["_id"])
+            print(weather_data)
+
+
+
+        return jsonify(weather_data)
+
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -105,6 +178,69 @@ def login():
 def logout():
     session.clear()  # Clear the user's session data
     return render_template("logout.html")
+
+
+def generate_powerbi_embed_token(report_id):
+    client_id = os.environ.get("POWERBI_CLIENT_ID")
+    client_secret = os.environ.get("POWERBI_CLIENT_SECRET")
+    tenant_id = os.environ.get("POWERBI_TENANT_ID")
+
+    token_endpoint = f"https://api.powerbi.com/v1.0/myorg/groups/{tenant_id}/reports/{report_id}/GenerateToken"
+
+    token_request_data = {"accessLevel": "view"}
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {get_access_token(client_id, client_secret, tenant_id)}"
+    }
+
+    response = requests.post(token_endpoint, json=token_request_data, headers=headers)
+    
+    if response.status_code == 200:
+        return response.json()["token"]
+    else:
+        print("Error generating embed token:", response.status_code, response.text)
+        return None
+
+def get_access_token(client_id, client_secret, tenant_id):
+    token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
+    token_request_data = {
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "resource": "https://analysis.windows.net/powerbi/api"
+    }
+
+    response = requests.post(token_url, data=token_request_data)
+    if response.status_code == 200:
+        return response.json()["access_token"]
+    else:
+        print("Error getting access token:", response.status_code, response.text)
+        return None
+
+@app.route("/dashboard")
+def dashboard():
+    if "user_id" in session:
+        user = db.users.find_one({"_id": session["user_id"]})
+        if not user:
+            return "User not found", 404  # or redirect to another page
+
+        # Ensure you're fetching this environment variable correctly
+        GOOGLE_API = os.environ.get("GOOGLE_API")
+        if not GOOGLE_API:
+            raise ValueError("GOOGLE_API environment variable not set!")
+
+        # Assuming you have a get_latitude_longitude_from_zip() function from the initial code
+        # latitude, longitude, formatted_address, locality, administrative_area = get_latitude_longitude_from_zip(user["zip_code"], GOOGLE_API)
+
+        report_id = "471bb37a-6f83-4f8f-b857-1e94404b0350"
+        embed_token = generate_powerbi_embed_token(report_id)
+        if not embed_token:
+            return "Error generating PowerBI embed token", 500
+
+        return render_template("dashboard.html", user=user, embed_token=embed_token)
+    else:
+        return redirect("/login")
+
 
 if __name__ == "__main__":
     app.run(debug=True)
