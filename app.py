@@ -7,16 +7,11 @@ from mongo_connect import client
 import requests
 from get_coords import get_latitude_longitude_from_zip
 from dotenv import load_dotenv #pip install python-dotenv
-<<<<<<< Updated upstream
-
-load_dotenv() #fetching the .env file which contains any sensitive information to call
-=======
 from bson import json_util
 from datetime import datetime
 from geopy.geocoders import Nominatim
 
 load_dotenv()
->>>>>>> Stashed changes
 
 
 
