@@ -28,6 +28,7 @@ def fetch_and_store_weather(latitude, longitude, zip_code):
     
     response = requests.get(nws_api_endpoint)
     if "properties" in response.json():
+        forecast_hourly_endpoint = response.json()["properties"]["forecastHourly"]
         forecast_endpoint = response.json()["properties"]["forecast"]
         
         forecast_response = requests.get(forecast_endpoint)
