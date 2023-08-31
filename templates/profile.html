@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block title %}Profile{% endblock %}
+
+{% block content %}
+<div class="col-md-6 offset-md-3">
+    <h1>User Profile</h1>
+    <p>Welcome, {{ username }}!</p>
+
+<!-- Change Password Section -->
+{% if success_message %}
+<div class="alert alert-success">
+    {{ success_message }}
+</div>
+{% endif %}
+{% if error_message %}
+<div class="alert alert-danger">
+    {{ error_message }}
+</div>
+{% endif %}
+
+        <!-- Zipcode Update Form wrapped in a card -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h3>Update Your Zipcode</h3>
+        </div>
+        <div class="card-body">
+            <p>Use the form below to update your zipcode:</p>
+            <form action="{{ url_for('update_zipcode') }}" method="POST">
+                <div class="form-group">
+                    <label for="new_zipcode">New Zipcode</label>
+                    <input type="text" class="form-control" id="new_zipcode" name="new_zipcode" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Update</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Password Update Form wrapped in a card -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h3>Change your Password</h3>
+        </div>
+        <div class="card-body">
+            <p>Use the form below to change your password:</p>
+            <form action="{{ url_for('update_password') }}" method="POST">
+                <div class="form-group">
+                    <label for="current_password">Current Password</label>
+                    <input type="password" class="form-control" id="current_password" name="current_password" required>
+                </div>
+                <div class="form-group">
+                    <label for="new_password">New Password</label>
+                    <input type="password" class="form-control" id="new_password" name="new_password" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirm_new_password">Confirm New Password</label>
+                    <input type="password" class="form-control" id="confirm_new_password" name="confirm_new_password" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Change Password</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Displaying message outside the card, but you can move it inside if you prefer -->
+    {% if message %}
+    <p class="mt-3 text-danger">{{ message }}</p>
+    {% endif %}
+
+
+</div>
+{% endblock %}
