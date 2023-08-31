@@ -10,10 +10,7 @@ from bson import json_util
 from datetime import datetime
 from collections import defaultdict
 
-from geopy.geocoders import Nominatim
-
 load_dotenv()
-
 
 app = Flask(__name__, static_url_path='/static')
 app.config["SECRET_KEY"] = "your_secret_key"
@@ -30,7 +27,6 @@ weather_collection = db["weather"]
 # For hourly weather data
 weather_collection_hourly = db["weather_hourly"]
 
-geolocator = Nominatim(user_agent="weatherApp")
 
 def parse_json(data):
     return json.loads(json_util.dumps(data))
@@ -135,10 +131,8 @@ def index():
 
         process_weekly_forecast(weather_data)
 
-        # Getting Address information from zip code
-        address = geolocator.geocode(weather_data[0]["zip_code"]).address
-        print(address)
-        weather_data[0]["metro"] = address
+        print(formatted_address)
+        weather_data[0]["formattedAddress"] = formatted_address
         return render_template("index.html", user=user, weather_data=weather_data, user_logged_in=True)
     return render_template("index.html", user_logged_in=False)
 
