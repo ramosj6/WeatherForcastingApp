@@ -15,13 +15,13 @@ def get_latitude_longitude_from_zip(zip_code, api_key):
             location = results[0]["geometry"]["location"]
             latitude = location["lat"]
             longitude = location["lng"]
-            print("Latitude:", latitude)
-            print("Longitude:", longitude)
+            #print("Latitude:", latitude)
+            #print("Longitude:", longitude)
    
             formatted_address = results[0]["formatted_address"]
             locality = None
             administrative_area = None
-            print(results)
+            #print(results)
             # Extract locality and administrative area if available
             for component in results[0]["address_components"]:
                 if "locality" in component["types"]:
