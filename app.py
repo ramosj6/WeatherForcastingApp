@@ -99,36 +99,47 @@ def fetch_and_store_weather(latitude, longitude, zip_code):
 @app.route("/")
 def index():
     """Renders the index page."""
-
     if "user_id" in session:
         user = db.users.find_one({"_id": session["user_id"]})
+        
+        # Fetch latitude and longitude based on user's zip code
+        latitude, longitude, formatted_address, locality, administrative_area = get_latitude_longitude_from_zip(
+            user["zip_code"], os.environ.get("GOOGLE_API")
+        )
+        
+        # Fetch and store weather data based on extracted locality and administrative area
+        if latitude and longitude:
+            fetch_and_store_weather(latitude, longitude, user["zip_code"])
+        
+        weather_data = parse_json(weather_collection_hourly.find({"zip_code": user['zip_code']}))
 
-        if user is not None and user["zip_code"]:
-            latitude, longitude, formatted_address, locality, administrative_area = get_latitude_longitude_from_zip(
-                user["zip_code"], os.environ.get("GOOGLE_API")
+        # Implementing pre-processing on the data for the start and end times
+        for period in weather_data[0]["forecast_data"]["properties"]["periods"]:
+            start_time = datetime.strptime(
+                period["startTime"], "%Y-%m-%dT%H:%M:%S%z"
             )
 
-            if latitude and longitude:
-                fetch_and_store_weather(latitude, longitude, user["zip_code"])
+            end_time = datetime.strptime(
+                period["endTime"], "%Y-%m-%dT%H:%M:%S%z"
+            )
 
-            weather_data = list(db.weather.find())
+            todays_day = datetime.today().strftime('%A')
+            day_of_week = start_time.strftime('%A')
 
-            default_latitude = latitude
-            default_longitude = longitude
+            start_hour = start_time.strftime("%I").lstrip("0")
+            end_hour = end_time.strftime("%I").lstrip("0")
 
-            return render_template("index.html", user=user, weather_data=weather_data,
-                               user_logged_in=True, default_latitude=default_latitude,
-                               default_longitude=default_longitude, latitude=latitude, longitude=longitude)
-        else:
-            default_latitude = 39.8283
-            default_longitude = 98.5795
-            return render_template("index.html", user_logged_in=False,
-                               default_latitude=default_latitude, default_longitude=default_longitude)
-    else:
-        default_latitude = 39.8283
-        default_longitude = 98.5795
-        return render_template("index.html", user_logged_in=False,
-                               default_latitude=default_latitude, default_longitude=default_longitude)
+            period["startTime"] = f"{start_hour}:{start_time.strftime('%M %p')}"
+            period["endTime"] = f"{end_hour}:{end_time.strftime('%M %p')}"
+            period["dayOfWeek"] = 'Today' if todays_day == day_of_week else day_of_week
+
+        process_weekly_forecast(weather_data)
+
+        print(formatted_address)
+        weather_data[0]["formattedAddress"] = formatted_address
+        return render_template("index.html", user=user, weather_data=weather_data, user_logged_in=True)
+    return render_template("index.html", user_logged_in=False)
+
     
 @app.route("/map")
 def map_page():
