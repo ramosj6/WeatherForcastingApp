@@ -1,17 +1,20 @@
 import os
-from flask import Flask, render_template, request, redirect, session
+from flask import Flask, json, render_template, request, redirect, session
 from flask_bcrypt import Bcrypt
 from flask_session import Session
 from mongo_connect import client
 import requests
 from get_coords import get_latitude_longitude_from_zip
 from dotenv import load_dotenv #pip install python-dotenv
+from bson import json_util
+from datetime import datetime
+
+from geopy.geocoders import Nominatim
 
 load_dotenv()
 
 
-
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='/static')
 app.config["SECRET_KEY"] = "your_secret_key"
 app.config["SESSION_TYPE"] = "filesystem"
 
@@ -21,6 +24,11 @@ Session(app)
 db = client["Weather"]
 weather_collection = db["weather"]
 
+geolocator = Nominatim(user_agent="weatherApp")
+
+
+def parse_json(data):
+    return json.loads(json_util.dumps(data))
 
 def fetch_and_store_weather(latitude, longitude, zip_code):
     nws_api_endpoint = f"https://api.weather.gov/points/{latitude},{longitude}"
@@ -71,7 +79,33 @@ def index():
         if latitude and longitude:
             fetch_and_store_weather(latitude, longitude, user["zip_code"])
         
-        weather_data = db.weather_data.find()
+        weather_data = parse_json(weather_collection.find({"zip_code": user['zip_code']}))
+
+        # Implementing pre-processing on the data for the start and end times
+        for period in weather_data[0]["forecast_data"]["properties"]["periods"]:
+            start_time = datetime.strptime(
+                period["startTime"], "%Y-%m-%dT%H:%M:%S%z"
+            )
+
+            end_time = datetime.strptime(
+                period["endTime"], "%Y-%m-%dT%H:%M:%S%z"
+            )
+
+            todays_day = datetime.today().strftime('%A')
+            day_of_week = start_time.strftime('%A')
+
+            start_hour = start_time.strftime("%I").lstrip("0")
+            end_hour = end_time.strftime("%I").lstrip("0")
+
+            period["startTime"] = f"{start_hour}:{start_time.strftime('%M %p')}"
+            period["endTime"] = f"{end_hour}:{end_time.strftime('%M %p')}"
+            period["dayOfWeek"] = 'Today' if todays_day == day_of_week else day_of_week
+
+
+        # Getting Address information from zip code
+        address = geolocator.geocode(weather_data[0]["zip_code"]).address
+        print(address)
+        weather_data[0]["metro"] = address
         return render_template("index.html", user=user, weather_data=weather_data, user_logged_in=True)
     return render_template("index.html", user_logged_in=False)
 

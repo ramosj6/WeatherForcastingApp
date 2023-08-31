@@ -2,16 +2,65 @@
 {% block title %}RainCheck Weather App{% endblock %}
 
 {% block content %}
-<div class="col-md-6 offset-md-3">
-    <h2>Weather Forecast</h2>
-    <ul>
-        {% for entry in weather_data %}
-            <li>{{ entry.location }}: {{ entry.temperature }}°C</li>
-        {% endfor %}
-    </ul>
-    {% if not user_logged_in %}
-    <p>You are not logged in. <a href="/login">Login</a> or <a href="/register">Register</a>.</p>
-    {% endif %}
+<div class="weather-container">
+    <h1>Current Weather</h1>
+    <div class="current-weather">
+        <div class="location">
+            <h3>{{ weather_data[0].metro.split(',')[0] }}</h3>
+            <p class="zip-code">{{ weather_data[0].zip_code }}</p>
+        </div>
+        <div class="weather-items">
+            {% with current_weather = weather_data[0].forecast_data.properties.periods[0] %}
+                <div class="weather-item">
+                    {% if current_weather.shortForecast == "Sunny" %}
+                        <img src="{{ url_for('static', filename='icons/1530392_weather_sun_sunny_temperature_icon.png') }}" alt="Weather Icon" class="weather-icon">
+                    {% endif %}
+                    <div class="temperature">{{ current_weather.temperature }}°{{ current_weather.temperatureUnit }}</div>
+                    <div class="forecast">{{ current_weather.shortForecast }}</div>
+                    <div class="details">
+                        <p class="detail">Wind: {{ current_weather.windSpeed }} {{ current_weather.windDirection }}</p>
+                        <p class="detail">Humidity: {{ current_weather.relativeHumidity.value }}%</p>
+                        <p class="detail">Precipitation: {{ current_weather.probabilityOfPrecipitation.value }}%</p>
+                    </div>
+                </div>
+            {% endwith %}
+        </div>
+    </div>
 
+    <div class="hourly-forecast">
+        <div class="forecast-title">
+            <img src="{{ url_for('static', filename='icons/clock-png-25772.png') }}" alt="clock-icon">
+            <p class="title"><i>Hourly Forecast</i></p>
+        </div>
+        <div class="hourly-items">
+            {% for hour_data in weather_data[0].forecast_data.properties.periods[:24] %}
+            <div class="hour">
+                <p class="time">{{ hour_data.startTime }}</p>
+                <img src="{{ hour_data.icon }}" alt="Weather Icon" class="weather-icon">
+                <p class="hourly-temperature">{{ hour_data.temperature }}°{{ hour_data.temperatureUnit }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="seven-day-forecast">
+        <div class="forecast-title">
+            <p class="title">7-Day Forecast</p>
+        </div>
+        <div class="daily-items">
+            {% for day_data in weather_data[0].forecast_data.properties.periods[1:] %}
+            <div class="day">
+                <p class="day-name">{{ day_data.dayOfWeek }}</p>
+                <img src="{{ day_data.icon }}" alt="Weather Icon" class="weather-icon">
+                <p class="high-low">{{ day_data.temperatureMax }}°/{{ day_data.temperatureMin }}°</p>
+                <p class="forecast">{{ day_data.shortForecast }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% if not user_logged_in %}
+    <p class="login-message">You are not logged in. <a href="/login">Login</a> or <a href="/register">Register</a>.</p>
+    {% endif %}
 </div>
 {% endblock %}
