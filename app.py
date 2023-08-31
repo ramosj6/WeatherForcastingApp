@@ -12,10 +12,7 @@ from datetime import datetime
 
 from collections import defaultdict
 
-from geopy.geocoders import Nominatim
-
 load_dotenv()
-
 
 app = Flask(__name__, static_url_path='/static')
 app.config["SECRET_KEY"] = "your_secret_key"
@@ -32,7 +29,6 @@ weather_collection = db["weather"]
 # For hourly weather data
 weather_collection_hourly = db["weather_hourly"]
 
-geolocator = Nominatim(user_agent="weatherApp")
 
 def parse_json(data):
     return json.loads(json_util.dumps(data))
@@ -103,36 +99,47 @@ def fetch_and_store_weather(latitude, longitude, zip_code):
 @app.route("/")
 def index():
     """Renders the index page."""
-
     if "user_id" in session:
         user = db.users.find_one({"_id": session["user_id"]})
+        
+        # Fetch latitude and longitude based on user's zip code
+        latitude, longitude, formatted_address, locality, administrative_area = get_latitude_longitude_from_zip(
+            user["zip_code"], os.environ.get("GOOGLE_API")
+        )
+        
+        # Fetch and store weather data based on extracted locality and administrative area
+        if latitude and longitude:
+            fetch_and_store_weather(latitude, longitude, user["zip_code"])
+        
+        weather_data = parse_json(weather_collection_hourly.find({"zip_code": user['zip_code']}))
 
-        if user is not None and user["zip_code"]:
-            latitude, longitude, formatted_address, locality, administrative_area = get_latitude_longitude_from_zip(
-                user["zip_code"], os.environ.get("GOOGLE_API")
+        # Implementing pre-processing on the data for the start and end times
+        for period in weather_data[0]["forecast_data"]["properties"]["periods"]:
+            start_time = datetime.strptime(
+                period["startTime"], "%Y-%m-%dT%H:%M:%S%z"
             )
 
-            if latitude and longitude:
-                fetch_and_store_weather(latitude, longitude, user["zip_code"])
+            end_time = datetime.strptime(
+                period["endTime"], "%Y-%m-%dT%H:%M:%S%z"
+            )
 
-            weather_data = list(db.weather.find())
+            todays_day = datetime.today().strftime('%A')
+            day_of_week = start_time.strftime('%A')
 
-            default_latitude = latitude
-            default_longitude = longitude
+            start_hour = start_time.strftime("%I").lstrip("0")
+            end_hour = end_time.strftime("%I").lstrip("0")
 
-            return render_template("index.html", user=user, weather_data=weather_data,
-                               user_logged_in=True, default_latitude=default_latitude,
-                               default_longitude=default_longitude, latitude=latitude, longitude=longitude)
-        else:
-            default_latitude = 39.8283
-            default_longitude = 98.5795
-            return render_template("index.html", user_logged_in=False,
-                               default_latitude=default_latitude, default_longitude=default_longitude)
-    else:
-        default_latitude = 39.8283
-        default_longitude = 98.5795
-        return render_template("index.html", user_logged_in=False,
-                               default_latitude=default_latitude, default_longitude=default_longitude)
+            period["startTime"] = f"{start_hour}:{start_time.strftime('%M %p')}"
+            period["endTime"] = f"{end_hour}:{end_time.strftime('%M %p')}"
+            period["dayOfWeek"] = 'Today' if todays_day == day_of_week else day_of_week
+
+        process_weekly_forecast(weather_data)
+
+        print(formatted_address)
+        weather_data[0]["formattedAddress"] = formatted_address
+        return render_template("index.html", user=user, weather_data=weather_data, user_logged_in=True)
+    return render_template("index.html", user_logged_in=False)
+
     
 @app.route("/map")
 def map_page():
@@ -189,6 +196,10 @@ def weather_data():
 
         return jsonify(weather_data)
 
+        print(formatted_address)
+        weather_data[0]["formattedAddress"] = formatted_address
+        return render_template("index.html", user=user, weather_data=weather_data, user_logged_in=True)
+    return render_template("index.html", user_logged_in=False)
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -282,6 +293,57 @@ def dashboard():
         return render_template("dashboard.html", user=user, embed_token=embed_token)
     else:
         return redirect("/login")
+
+@app.route("/profile")
+def profile():
+    if "user_id" in session:
+        user = db.users.find_one({"_id": session["user_id"]})
+        return render_template("profile.html", username=user["username"], user_logged_in=True)
+    return redirect("/login")
+
+@app.route("/update_zipcode", methods=["POST"])
+def update_zipcode():
+    if "user_id" in session:
+        if request.method == "POST":
+            new_zipcode = request.form["new_zipcode"]
+            user = db.users.find_one({"_id": session["user_id"]})
+            # Update the user's zipcode in the database
+            db.users.update_one(
+                {"_id": session["user_id"]},
+                {"$set": {"zip_code": new_zipcode}}
+            )
+            success_message = "Zipcode updated successfully."
+            return render_template("profile.html", username=user["username"],  success_message=success_message, user_logged_in=True)
+    return redirect("/login")  # Redirect to the login page if the user is not logged in
+
+@app.route("/update_password", methods=["POST"])
+def update_password():
+    if "user_id" in session:
+        if request.method == "POST":
+            current_password = request.form["current_password"]
+            new_password = request.form["new_password"]
+            confirm_new_password = request.form["confirm_new_password"]
+            user = db.users.find_one({"_id": session["user_id"]})
+            
+            if bcrypt.check_password_hash(user["password"], current_password):
+            
+                if new_password == confirm_new_password:
+                    # Hash and update the new password in the database
+                    hashed_password = bcrypt.generate_password_hash(new_password).decode("utf-8")
+                    db.users.update_one(
+                        {"_id": session["user_id"]},
+                        {"$set": {"password": hashed_password}}
+                    )
+                    # Pass a success message to the template
+                    success_message = "Password changed successfully."
+                    return render_template("profile.html", username=user["username"], success_message=success_message, user_logged_in=True)
+                else:
+                    error_message = "New password and confirmation do not match."
+                    return render_template("profile.html", username=user["username"], error_message=error_message, user_logged_in=True)
+            else:
+                error_message = "Current password is incorrect."
+                return render_template("profile.html", username=user["username"], error_message=error_message, user_logged_in=True)
+        return redirect("/login")            
 
 
 if __name__ == "__main__":

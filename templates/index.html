@@ -2,63 +2,66 @@
 {% block title %}RainCheck Weather App{% endblock %}
 
 {% block content %}
-<div class="weather-container">
-    <h1>Current Weather</h1>
-    <div class="current-weather">
-        <div class="location">
-            <h3>{{ weather_data[0].metro.split(',')[0] }}</h3>
-            <p class="zip-code">{{ weather_data[0].zip_code }}</p>
-        </div>
-        <div class="weather-items">
-            {% with current_weather = weather_data[0].forecast_data.properties.periods[0] %}
-                <div class="weather-item">
-                    <div class="temperature">{{ current_weather.temperature }}°{{ current_weather.temperatureUnit }}</div>
-                    <div class="forecast">{{ current_weather.shortForecast }}</div>
-                    <div class="details">
-                        <p class="detail">Wind: {{ current_weather.windSpeed }} {{ current_weather.windDirection }}</p>
-                        <p class="detail">Humidity: {{ current_weather.relativeHumidity.value }}%</p>
-                        <p class="detail">Precipitation: {{ current_weather.probabilityOfPrecipitation.value }}%</p>
-                    </div>
-                </div>
-            {% endwith %}
-        </div>
-    </div>
-
-    <div class="hourly-forecast">
-        <div class="forecast-title">
-            <img src="{{ url_for('static', filename='icons/clock-png-25772.png') }}" alt="clock-icon">
-            <p class="title"><i>Hourly Forecast</i></p>
-        </div>
-        <div class="hourly-items">
-            {% for hour_data in weather_data[0].forecast_data.properties.periods[:24] %}
-            <div class="hour">
-                <p class="time">{{ hour_data.startTime }}</p>
-                <p class="forecast">{{ hour_data.shortForecast }}</p>
-                <p class="hourly-temperature">{{ hour_data.temperature }}°{{ hour_data.temperatureUnit }}</p>
+{% if user_logged_in %}
+    <div class="weather-container">
+        <h1>Current Weather</h1>
+        <div class="current-weather">
+            <div class="location">
+                <h3>{{ weather_data[0].formattedAddress.split(',')[0] }}</h3>
+                <p class="zip-code">{{ weather_data[0].zip_code }}</p>
             </div>
-            {% endfor %}
+            <div class="weather-items">
+                {% with current_weather = weather_data[0].forecast_data.properties.periods[0] %}
+                    <div class="weather-item">
+                        <div class="temperature">{{ current_weather.temperature }}°{{ current_weather.temperatureUnit }}</div>
+                        <div class="forecast">{{ current_weather.shortForecast }}</div>
+                        <div class="details">
+                            <p class="detail">Wind: {{ current_weather.windSpeed }} {{ current_weather.windDirection }}</p>
+                            <p class="detail">Humidity: {{ current_weather.relativeHumidity.value }}%</p>
+                            <p class="detail">Precipitation: {{ current_weather.probabilityOfPrecipitation.value }}%</p>
+                        </div>
+                    </div>
+                {% endwith %}
+            </div>
         </div>
-    </div>
 
-    <div class="seven-day-forecast">
-        <div class="forecast-title">
-            <p class="title"><i>7-Day Forecast</i></p>
-        </div>
-        <div class="daily-items">
-        {% for day_data in weather_data[0].forecast_data.properties.grouped_forecast %}
-            {% for day_name, forecast_data in day_data.items() %}
-                <div class="day">
-                    <p class="day-name">{{ day_name }}</p>
-                    <p class="forecast">{{ forecast_data.forecast }}</p>
-                    <p class="high-low">H:{{ forecast_data.maxTemp }}° L:{{ forecast_data.minTemp }}°</p>
+        <div class="hourly-forecast">
+            <div class="forecast-title">
+                <img src="{{ url_for('static', filename='icons/clock-png-25772.png') }}" alt="clock-icon">
+                <p class="title"><i>Hourly Forecast</i></p>
+            </div>
+            <div class="hourly-items">
+                {% for hour_data in weather_data[0].forecast_data.properties.periods[:24] %}
+                <div class="hour">
+                    <p class="time">{{ hour_data.startTime }}</p>
+                    <p class="forecast">{{ hour_data.shortForecast }}</p>
+                    <p class="hourly-temperature">{{ hour_data.temperature }}°{{ hour_data.temperatureUnit }}</p>
                 </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="seven-day-forecast">
+            <div class="forecast-title">
+                <p class="title"><i>7-Day Forecast</i></p>
+            </div>
+            <div class="daily-items">
+            {% for day_data in weather_data[0].forecast_data.properties.grouped_forecast %}
+                {% for day_name, forecast_data in day_data.items() %}
+                    <div class="day">
+                        <p class="day-name">{{ day_name }}</p>
+                        <p class="forecast">{{ forecast_data.forecast }}</p>
+                        <p class="high-low">H:{{ forecast_data.maxTemp }}° L:{{ forecast_data.minTemp }}°</p>
+                    </div>
+                {% endfor %}
             {% endfor %}
-        {% endfor %}
+            </div>
         </div>
     </div>
-
-    {% if not user_logged_in %}
+{% else %}
+<div class="col-md-6 offset-md-3">
     <p class="login-message">You are not logged in. <a href="/login">Login</a> or <a href="/register">Register</a>.</p>
-    {% endif %}
 </div>
+{% endif %}
+
 {% endblock %}
