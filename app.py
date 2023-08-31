@@ -12,10 +12,7 @@ from datetime import datetime
 
 from collections import defaultdict
 
-from geopy.geocoders import Nominatim
-
 load_dotenv()
-
 
 app = Flask(__name__, static_url_path='/static')
 app.config["SECRET_KEY"] = "your_secret_key"
@@ -32,7 +29,6 @@ weather_collection = db["weather"]
 # For hourly weather data
 weather_collection_hourly = db["weather_hourly"]
 
-geolocator = Nominatim(user_agent="weatherApp")
 
 def parse_json(data):
     return json.loads(json_util.dumps(data))
@@ -189,6 +185,10 @@ def weather_data():
 
         return jsonify(weather_data)
 
+        print(formatted_address)
+        weather_data[0]["formattedAddress"] = formatted_address
+        return render_template("index.html", user=user, weather_data=weather_data, user_logged_in=True)
+    return render_template("index.html", user_logged_in=False)
 
 @app.route("/register", methods=["GET", "POST"])
 def register():

@@ -6,7 +6,7 @@
     <h1>Current Weather</h1>
     <div class="current-weather">
         <div class="location">
-            <h3>{{ weather_data[0].metro.split(',')[0] }}</h3>
+            <h3>{{ weather_data[0].formattedAddress.split(',')[0] }}</h3>
             <p class="zip-code">{{ weather_data[0].zip_code }}</p>
         </div>
         <div class="weather-items">
