@@ -8,6 +8,7 @@ from get_coords import get_latitude_longitude_from_zip
 from dotenv import load_dotenv #pip install python-dotenv
 from bson import json_util
 from datetime import datetime
+from collections import defaultdict
 
 from geopy.geocoders import Nominatim
 
@@ -22,13 +23,44 @@ bcrypt = Bcrypt(app)
 Session(app)
 
 db = client["Weather"]
+
+# For general weather data
 weather_collection = db["weather"]
+
+# For hourly weather data
+weather_collection_hourly = db["weather_hourly"]
 
 geolocator = Nominatim(user_agent="weatherApp")
 
-
 def parse_json(data):
     return json.loads(json_util.dumps(data))
+
+def process_weekly_forecast(data):
+    grouped_forecast = defaultdict(list)
+    for period in data[0]["forecast_data"]["properties"]["periods"]:
+        day_of_week = period["dayOfWeek"]
+        grouped_forecast[day_of_week].append(period)
+    
+    grouped_forecast_list = []
+    for day_name, day_forecasts in grouped_forecast.items():
+        min_temperature = min(forecast["temperature"] for forecast in day_forecasts)
+        max_temperature = max(forecast["temperature"] for forecast in day_forecasts)
+
+        # Find the forecast with the max temperature and get its shortForecast
+        max_temp_forecast = next(forecast for forecast in day_forecasts if forecast["temperature"] == max_temperature)["shortForecast"]
+
+        grouped_forecast_list.append(
+            {
+                day_name : {
+                    "minTemp": min_temperature,
+                    "maxTemp": max_temperature,
+                    "forecast": max_temp_forecast
+                }
+            }
+        )
+
+    data[0]["forecast_data"]["properties"]["grouped_forecast"] = grouped_forecast_list
+
 
 def fetch_and_store_weather(latitude, longitude, zip_code):
     nws_api_endpoint = f"https://api.weather.gov/points/{latitude},{longitude}"
@@ -42,17 +74,17 @@ def fetch_and_store_weather(latitude, longitude, zip_code):
             forecast_data = forecast_hourly_response.json()
             
             # Check if the latitude and longitude combination already exists
-            existing_record = db.weather.find_one({"latitude": latitude, "longitude": longitude})
+            existing_record = db.weather_hourly.find_one({"latitude": latitude, "longitude": longitude})
             if existing_record:
                 # Update the existing record with new forecast data
-                weather_collection.update_one(
+                weather_collection_hourly.update_one(
                     {"latitude": latitude, "longitude": longitude},
                     {"$set": {"forecast_data": forecast_data}}
                 )
                 print("Weather data updated successfully.")
             else:
                 # Store the forecast data along with latitude, longitude, and zip code
-                weather_collection.insert_one({
+                weather_collection_hourly.insert_one({
                     "latitude": latitude,
                     "longitude": longitude,
                     "zip_code": zip_code,
@@ -79,7 +111,7 @@ def index():
         if latitude and longitude:
             fetch_and_store_weather(latitude, longitude, user["zip_code"])
         
-        weather_data = parse_json(weather_collection.find({"zip_code": user['zip_code']}))
+        weather_data = parse_json(weather_collection_hourly.find({"zip_code": user['zip_code']}))
 
         # Implementing pre-processing on the data for the start and end times
         for period in weather_data[0]["forecast_data"]["properties"]["periods"]:
@@ -101,6 +133,7 @@ def index():
             period["endTime"] = f"{end_hour}:{end_time.strftime('%M %p')}"
             period["dayOfWeek"] = 'Today' if todays_day == day_of_week else day_of_week
 
+        process_weekly_forecast(weather_data)
 
         # Getting Address information from zip code
         address = geolocator.geocode(weather_data[0]["zip_code"]).address

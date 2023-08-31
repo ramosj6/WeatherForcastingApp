@@ -12,9 +12,6 @@
         <div class="weather-items">
             {% with current_weather = weather_data[0].forecast_data.properties.periods[0] %}
                 <div class="weather-item">
-                    {% if current_weather.shortForecast == "Sunny" %}
-                        <img src="{{ url_for('static', filename='icons/1530392_weather_sun_sunny_temperature_icon.png') }}" alt="Weather Icon" class="weather-icon">
-                    {% endif %}
                     <div class="temperature">{{ current_weather.temperature }}°{{ current_weather.temperatureUnit }}</div>
                     <div class="forecast">{{ current_weather.shortForecast }}</div>
                     <div class="details">
@@ -36,26 +33,27 @@
             {% for hour_data in weather_data[0].forecast_data.properties.periods[:24] %}
             <div class="hour">
                 <p class="time">{{ hour_data.startTime }}</p>
-                <img src="{{ hour_data.icon }}" alt="Weather Icon" class="weather-icon">
+                <p class="forecast">{{ hour_data.shortForecast }}</p>
                 <p class="hourly-temperature">{{ hour_data.temperature }}°{{ hour_data.temperatureUnit }}</p>
             </div>
             {% endfor %}
         </div>
     </div>
-    
+
     <div class="seven-day-forecast">
         <div class="forecast-title">
-            <p class="title">7-Day Forecast</p>
+            <p class="title"><i>7-Day Forecast</i></p>
         </div>
         <div class="daily-items">
-            {% for day_data in weather_data[0].forecast_data.properties.periods[1:] %}
-            <div class="day">
-                <p class="day-name">{{ day_data.dayOfWeek }}</p>
-                <img src="{{ day_data.icon }}" alt="Weather Icon" class="weather-icon">
-                <p class="high-low">{{ day_data.temperatureMax }}°/{{ day_data.temperatureMin }}°</p>
-                <p class="forecast">{{ day_data.shortForecast }}</p>
-            </div>
+        {% for day_data in weather_data[0].forecast_data.properties.grouped_forecast %}
+            {% for day_name, forecast_data in day_data.items() %}
+                <div class="day">
+                    <p class="day-name">{{ day_name }}</p>
+                    <p class="forecast">{{ forecast_data.forecast }}</p>
+                    <p class="high-low">H:{{ forecast_data.maxTemp }}° L:{{ forecast_data.minTemp }}°</p>
+                </div>
             {% endfor %}
+        {% endfor %}
         </div>
     </div>
 
