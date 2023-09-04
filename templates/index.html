@@ -97,6 +97,10 @@
             {% endfor %}
             </div>
         </div>
+        <a href="{{ url_for('map_page') }}" class="map-link">View Interactive Map</a>
+        <br>
+        <a href="{{ url_for('dashboard') }}" class="map-link">View Dashboard</a>
+        <br>
     </div>
     <video id="weather-video" src="{{ url_for('static', filename='video_background/weather_video_baackground.mp4') }}" muted loop autoplay></video>
     <script>
