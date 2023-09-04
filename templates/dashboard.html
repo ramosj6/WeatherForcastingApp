@@ -1,36 +1,15 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Weather Dashboard</title>
-</head>
-<body>
-    <h1>Welcome, {{ user.username }}!</h1>
-    <div>
-        <h2>Power BI Embedded Visualization</h2>
-        <div id="reportContainer" style="height: 600px;"></div>
-    </div>
+{% extends 'base.html' %}
+{% block title %}RainCheck Weather App{% endblock %}
 
-    <script src="https://microsoft.github.io/PowerBI-JavaScript/demo/node_modules/powerbi-client/dist/powerbi.min.js"></script>
-    <script>
-        var embedToken = '{{ embed_token }}';
+{% block content %}
+{% if user_logged_in %}
 
-        var embedConfig = {
-            type: 'report',
-            id: '471bb37a-6f83-4f8f-b857-1e94404b0350',
-            embedUrl: 'https://app.powerbi.com/reportEmbed',
-            accessToken: embedToken,
-            settings: {
-                filterPaneEnabled: false,
-                navContentPaneEnabled: false
-            }
-        };
+    <iframe title="forecast_temps" width="1140" height="541.25" src="https://app.powerbi.com/reportEmbed?reportId=15da32c8-4d30-4865-852a-b3a91d1957f5&autoAuth=true&ctid=92ebe562-ecd9-47fa-b107-065ebb49968e" frameborder="0" allowFullScreen="true"></iframe>
 
-        var reportContainer = document.getElementById('reportContainer');
-        var report = powerbi.embed(reportContainer, embedConfig);
+{% else %}
+<div class="col-md-6 offset-md-3">
+    <p class="login-message">You are not logged in. <a href="/login">Login</a> or <a href="/register">Register</a>.</p>
+</div>
+{% endif %}
 
-        report.on("error", function(event) {
-            console.log("Embedding error:", event.detail);
-        });
-    </script>
-</body>
-</html>
+{% endblock %}
