@@ -57,6 +57,10 @@
             {% endfor %}
             </div>
         </div>
+        <a href="{{ url_for('map_page') }}" class="map-link">View Interactive Map</a>
+        <br>
+        <a href="{{ url_for('dashboard') }}" class="map-link">View Dashboard</a>
+        <br>
     </div>
 {% else %}
 <div class="col-md-6 offset-md-3">
