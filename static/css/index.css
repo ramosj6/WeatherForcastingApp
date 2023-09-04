@@ -93,6 +93,7 @@
     border-radius: 0 0 10px 10px;
 }
 
+
 .hourly-items .hour {
     flex: 0 0 auto;
     width: 100px;
@@ -106,6 +107,13 @@
     font-size: 12px;
     margin: 3px 0;
 }
+
+.hour .forecast {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 
 .seven-day-forecast {
     background-color: #f5f5f5;
@@ -151,4 +159,20 @@
 .day .forecast {
     flex-grow: 1;
     color: #777;
+}
+
+.map-link {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 10px 20px;
+    background-color: #007BFF;  /* Change this to your preferred button color */
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    text-decoration: none;  /* Removes underline from the hyperlink */
+    transition: background-color 0.3s ease;  /* Smooth transition for hover effect */
+}
+
+.map-link:hover {
+    background-color: #0056b3;  /* Slightly darker shade for hover */
 }

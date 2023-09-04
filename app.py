@@ -68,17 +68,19 @@ def fetch_and_store_weather(latitude, longitude, zip_code):
         forecast_hourly_endpoint = response.json()["properties"]["forecastHourly"]
         forecast_endpoint = response.json()["properties"]["forecast"]
         
-        forecast_response = requests.get(forecast_endpoint)
-        if forecast_response.status_code == 200:
-            forecast_data = forecast_response.json()
-            #print(forecast_data)
+        forecast_hourly_response = requests.get(forecast_hourly_endpoint)
+        forecast_response = requests.get(forecast_endpoint) 
+
+        if forecast_hourly_response.status_code == 200:
+            forecast_hourly_data = forecast_hourly_response.json()
+            
             # Check if the latitude and longitude combination already exists
-            existing_record = db.weather_hourly.find_one({"latitude": latitude, "longitude": longitude})
-            if existing_record:
+            existing_record_hourly = db.weather_hourly.find_one({"latitude": latitude, "longitude": longitude})
+            if existing_record_hourly:
                 # Update the existing record with new forecast data
                 weather_collection_hourly.update_one(
                     {"latitude": latitude, "longitude": longitude},
-                    {"$set": {"forecast_data": forecast_data}}
+                    {"$set": {"forecast_hourly_data": forecast_hourly_data}}
                 )
                 print("Weather data updated successfully.")
             else:
@@ -87,13 +89,41 @@ def fetch_and_store_weather(latitude, longitude, zip_code):
                     "latitude": latitude,
                     "longitude": longitude,
                     "zip_code": zip_code,
+                    "forecast_data": forecast_hourly_data
+                })
+                print("Weather data stored successfully.")
+        else:
+            print(f"API hourly request failed with status code: {forecast_hourly_response.status_code}")
+
+
+        if forecast_response.status_code == 200:
+            forecast_data = forecast_response.json()
+            
+            # Check if the latitude and longitude combination already exists
+            existing_record = db.weather.find_one({"latitude": latitude, "longitude": longitude})
+            if existing_record:
+                # Update the existing record with new forecast data
+                weather_collection.update_one(
+                    {"latitude": latitude, "longitude": longitude},
+                    {"$set": {"forecast_data": forecast_data}}
+                )
+                print("Weather data updated successfully.")
+            else:
+                # Store the forecast data along with latitude, longitude, and zip code
+                weather_collection.insert_one({
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "zip_code": zip_code,
                     "forecast_data": forecast_data
                 })
                 print("Weather data stored successfully.")
         else:
             print(f"API request failed with status code: {forecast_response.status_code}")
+             
     else:
         print("No forecast data found.")
+
+
 
 
 @app.route("/")
@@ -112,7 +142,6 @@ def index():
             fetch_and_store_weather(latitude, longitude, user["zip_code"])
         
         weather_data = parse_json(weather_collection_hourly.find({"zip_code": user['zip_code']}))
-
         # Implementing pre-processing on the data for the start and end times
         for period in weather_data[0]["forecast_data"]["properties"]["periods"]:
             start_time = datetime.strptime(
@@ -143,42 +172,50 @@ def index():
     
 @app.route("/map")
 def map_page():
+    # Check if user is logged in
     if "user_id" in session:
         user = db.users.find_one({"_id": session["user_id"]})
+
+        # If user not found in database (this can happen if the user was deleted while they were logged in)
+        if not user:
+            session.pop("user_id", None)  # Remove the user_id from session
+            return redirect("/login")
+
         latitude, longitude, formatted_address, locality, administrative_area = get_latitude_longitude_from_zip(
             user["zip_code"], os.environ.get("GOOGLE_API")
         )
         weather_data = list(db.weather.find(projection={"_id": False}))
+
+        default_latitude = latitude if latitude else 39.8283
+        default_longitude = longitude if longitude else -98.5795
+
+        # Prepare the weather data to include only relevant information for JavaScript
+        processed_weather_data = []
+        for entry in weather_data:
+            periods = entry.get("properties", {}).get("periods", [])
+            if periods:
+                first_period = periods[0]
+                temperature = first_period.get("temperature")
+                icon_url = first_period.get("icon")
+                if temperature and icon_url:
+                    processed_weather_data.append({
+                        "latitude": entry["geometry"]["coordinates"][1],
+                        "longitude": entry["geometry"]["coordinates"][0],
+                        "temperature": temperature,
+                        "icon_url": icon_url
+                    })
+
+        return render_template(
+            "map.html",
+            user_logged_in=True,  # Indicate that user is logged in
+            user=user,  # Pass the user information to the template
+            default_latitude=default_latitude,
+            default_longitude=default_longitude,
+            weather_data=processed_weather_data
+        )
     else:
-        user = None
-        weather_data = []
-
-    default_latitude = latitude if latitude else 39.8283
-    default_longitude = longitude if longitude else -98.5795
-
-    # Prepare the weather data to include only relevant information for JavaScript
-    processed_weather_data = []
-    for entry in weather_data:
-        periods = entry.get("properties", {}).get("periods", [])
-        if periods:
-            first_period = periods[0]
-            temperature = first_period.get("temperature")
-            icon_url = first_period.get("icon")
-            if temperature and icon_url:
-                processed_weather_data.append({
-                    "latitude": entry["geometry"]["coordinates"][1],
-                    "longitude": entry["geometry"]["coordinates"][0],
-                    "temperature": temperature,
-                    "icon_url": icon_url
-                })
-
-    return render_template(
-        "map.html",
-        user=user,  # Pass the user information to the template
-        default_latitude=default_latitude,
-        default_longitude=default_longitude,
-        weather_data=processed_weather_data
-    )
+        # User is not logged in, redirect to login
+        return render_template("map.html", user_logged_in=False)
 
 
 @app.route("/weather")
@@ -282,15 +319,7 @@ def dashboard():
         if not GOOGLE_API:
             raise ValueError("GOOGLE_API environment variable not set!")
 
-        # Assuming you have a get_latitude_longitude_from_zip() function from the initial code
-        # latitude, longitude, formatted_address, locality, administrative_area = get_latitude_longitude_from_zip(user["zip_code"], GOOGLE_API)
-
-        report_id = "471bb37a-6f83-4f8f-b857-1e94404b0350"
-        embed_token = generate_powerbi_embed_token(report_id)
-        if not embed_token:
-            return "Error generating PowerBI embed token", 500
-
-        return render_template("dashboard.html", user=user, embed_token=embed_token)
+        return render_template("dashboard.html", user=user, user_logged_in=True)
     else:
         return redirect("/login")
 
