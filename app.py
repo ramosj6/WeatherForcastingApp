@@ -35,7 +35,7 @@ def parse_json(data):
 
 def process_weekly_forecast(data):
     grouped_forecast = defaultdict(list)
-    for period in data[0]["forecast_data"]["properties"]["periods"]:
+    for period in data[0]["forecast_data_hourly"]["properties"]["periods"]:
         day_of_week = period["dayOfWeek"]
         grouped_forecast[day_of_week].append(period)
     
@@ -47,17 +47,29 @@ def process_weekly_forecast(data):
         # Find the forecast with the max temperature and get its shortForecast
         max_temp_forecast = next(forecast for forecast in day_forecasts if forecast["temperature"] == max_temperature)["shortForecast"]
 
+        # Find the forecast with the max temp and get its icon - signifies weather for midday
+        max_temp_icon = next(forecast for forecast in day_forecasts if forecast["temperature"] == max_temperature)["icon"]
+
         grouped_forecast_list.append(
             {
                 day_name : {
                     "minTemp": min_temperature,
                     "maxTemp": max_temperature,
+                    "icon": max_temp_icon,
                     "forecast": max_temp_forecast
                 }
             }
         )
 
-    data[0]["forecast_data"]["properties"]["grouped_forecast"] = grouped_forecast_list
+    data[0]["forecast_data_hourly"]["properties"]["grouped_forecast"] = grouped_forecast_list
+
+
+def process_icon_url(data):
+    for period in data[0]["forecast_data_hourly"]["properties"]["periods"]:
+        parts = period["icon"].rsplit(',', 1)
+        if len(parts) == 2:
+            period["icon"] = parts[0] # keeping everthing before the last comma
+            
 
 
 def fetch_and_store_weather(latitude, longitude, zip_code):
@@ -68,22 +80,23 @@ def fetch_and_store_weather(latitude, longitude, zip_code):
         forecast_hourly_endpoint = response.json()["properties"]["forecastHourly"]
         forecast_endpoint = response.json()["properties"]["forecast"]
         
+        # This is for general forecast
         forecast_response = requests.get(forecast_endpoint)
         if forecast_response.status_code == 200:
             forecast_data = forecast_response.json()
             #print(forecast_data)
             # Check if the latitude and longitude combination already exists
-            existing_record = db.weather_hourly.find_one({"latitude": latitude, "longitude": longitude})
+            existing_record = db.weather.find_one({"latitude": latitude, "longitude": longitude})
             if existing_record:
                 # Update the existing record with new forecast data
-                weather_collection_hourly.update_one(
+                weather_collection.update_one(
                     {"latitude": latitude, "longitude": longitude},
                     {"$set": {"forecast_data": forecast_data}}
                 )
                 print("Weather data updated successfully.")
             else:
                 # Store the forecast data along with latitude, longitude, and zip code
-                weather_collection_hourly.insert_one({
+                weather_collection.insert_one({
                     "latitude": latitude,
                     "longitude": longitude,
                     "zip_code": zip_code,
@@ -92,6 +105,28 @@ def fetch_and_store_weather(latitude, longitude, zip_code):
                 print("Weather data stored successfully.")
         else:
             print(f"API request failed with status code: {forecast_response.status_code}")
+        
+        # This is for the hourly forecast, will be stored in a separate collection in the database
+        forecast_hourly_response = requests.get(forecast_hourly_endpoint)
+        if forecast_hourly_response.status_code == 200:
+            forecast_hourly_data = forecast_hourly_response.json()
+            existing_record = db.weather_hourly.find_one({"latitude": latitude, "longitude": longitude})
+            if existing_record:
+                weather_collection_hourly.update_one(
+                    {"latitude": latitude, "longitude": longitude},
+                    {"$set": {"forecast_data_hourly": forecast_hourly_data}}
+                )
+                print("Weather data updated successfully.")
+            else: 
+                weather_collection_hourly.insert_one({
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "zip_code": zip_code,
+                    "forecast_data_hourly": forecast_hourly_data
+                })
+                print("Weather data stored successfully.")
+        else:
+            print(f"API request failed with status code: {forecast_hourly_response.status_code}")
     else:
         print("No forecast data found.")
 
@@ -114,7 +149,7 @@ def index():
         weather_data = parse_json(weather_collection_hourly.find({"zip_code": user['zip_code']}))
 
         # Implementing pre-processing on the data for the start and end times
-        for period in weather_data[0]["forecast_data"]["properties"]["periods"]:
+        for period in weather_data[0]["forecast_data_hourly"]["properties"]["periods"]:
             start_time = datetime.strptime(
                 period["startTime"], "%Y-%m-%dT%H:%M:%S%z"
             )
@@ -133,6 +168,7 @@ def index():
             period["endTime"] = f"{end_hour}:{end_time.strftime('%M %p')}"
             period["dayOfWeek"] = 'Today' if todays_day == day_of_week else day_of_week
 
+        process_icon_url(weather_data)
         process_weekly_forecast(weather_data)
 
         print(formatted_address)
